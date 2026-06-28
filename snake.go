@@ -80,7 +80,14 @@ func (s *Snake) Move() {
 
 func (s *Snake) Grow() {
 	s.GrowQueue++
-	s.Score += 10
+}
+
+func (s *Snake) Shrink(n int) {
+	for i := 0; i < n; i++ {
+		if len(s.Body) > 1 {
+			s.Body = s.Body[:len(s.Body)-1]
+		}
+	}
 }
 
 func (s *Snake) Occupies(p Point) bool {

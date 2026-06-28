@@ -60,13 +60,14 @@ func (g *Game) TogglePause() {
 
 func (g *Game) checkFoodCollision(s *Snake) bool {
 	head := s.Head()
-	if g.FoodMgr.HasFoodAt(head) {
-		g.FoodMgr.RemoveAt(head)
-		s.Grow()
-		g.FoodMgr.Spawn(g.Snake1, g.Snake2)
-		return true
+	food := g.FoodMgr.GetFoodAt(head)
+	if food == nil {
+		return false
 	}
-	return false
+	g.FoodMgr.RemoveAt(head)
+	food.ApplyEffect(s)
+	g.FoodMgr.Spawn(g.Snake1, g.Snake2)
+	return true
 }
 
 func (g *Game) Tick() {
@@ -80,27 +81,27 @@ func (g *Game) Tick() {
 	g.checkFoodCollision(g.Snake1)
 	g.checkFoodCollision(g.Snake2)
 
-	s1Dead := false
-	s2Dead := false
+	s1Dead := !g.Snake1.Alive
+	s2Dead := !g.Snake2.Alive
 
-	if g.Board.CheckWallCollision(g.Snake1) {
+	if !s1Dead && g.Board.CheckWallCollision(g.Snake1) {
 		s1Dead = true
 	}
-	if g.Board.CheckWallCollision(g.Snake2) {
+	if !s2Dead && g.Board.CheckWallCollision(g.Snake2) {
 		s2Dead = true
 	}
 
-	if g.Snake1.CollidesWithSelf() {
+	if !s1Dead && g.Snake1.CollidesWithSelf() {
 		s1Dead = true
 	}
-	if g.Snake2.CollidesWithSelf() {
+	if !s2Dead && g.Snake2.CollidesWithSelf() {
 		s2Dead = true
 	}
 
-	if g.Snake1.CollidesWith(g.Snake2) {
+	if !s1Dead && g.Snake1.CollidesWith(g.Snake2) {
 		s1Dead = true
 	}
-	if g.Snake2.CollidesWith(g.Snake1) {
+	if !s2Dead && g.Snake2.CollidesWith(g.Snake1) {
 		s2Dead = true
 	}
 
