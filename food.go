@@ -15,60 +15,112 @@ const (
 	FoodPoison
 )
 
-type Food struct {
-	Pos   Point
-	Type  FoodType
-	Value int
-	Color string
+type FoodEffect func(*Snake)
+
+type FoodConfig struct {
+	Type   FoodType
+	Name   string
+	Color  string
+	Weight float64
+	Effect FoodEffect
 }
 
-func newFood(p Point, ft FoodType) Food {
-	switch ft {
-	case FoodGolden:
-		return Food{Pos: p, Type: FoodGolden, Value: 50, Color: "#f59e0b"}
-	case FoodPoison:
-		return Food{Pos: p, Type: FoodPoison, Value: -20, Color: "#a855f7"}
-	default:
-		return Food{Pos: p, Type: FoodNormal, Value: 10, Color: "#ef4444"}
-	}
+type Food struct {
+	Pos  Point
+	Type FoodType
+}
+
+func (f Food) Color() string {
+	return foodConfigs[f.Type].Color
 }
 
 func (f Food) ApplyEffect(s *Snake) {
-	switch f.Type {
-	case FoodGolden:
-		s.Grow()
-		s.Grow()
-		s.Score += f.Value
-	case FoodPoison:
-		if len(s.Body) <= 3 {
-			s.Alive = false
-			return
-		}
-		s.Shrink(2)
-		s.Score += f.Value
-		if s.Score < 0 {
-			s.Score = 0
-		}
-	default:
-		s.Grow()
-		s.Score += f.Value
+	foodConfigs[f.Type].Effect(s)
+}
+
+func normalEffect(s *Snake) {
+	s.Grow()
+	s.Score += 10
+}
+
+func goldenEffect(s *Snake) {
+	s.Grow()
+	s.Grow()
+	s.Score += 50
+}
+
+func poisonEffect(s *Snake) {
+	if len(s.Body) <= 3 {
+		s.Alive = false
+		return
 	}
+	s.Shrink(2)
+	s.Score -= 20
+	if s.Score < 0 {
+		s.Score = 0
+	}
+}
+
+var foodConfigs = map[FoodType]FoodConfig{
+	FoodNormal: {
+		Type:   FoodNormal,
+		Name:   "Normal",
+		Color:  "#ef4444",
+		Weight: 0.75,
+		Effect: normalEffect,
+	},
+	FoodGolden: {
+		Type:   FoodGolden,
+		Name:   "Golden",
+		Color:  "#f59e0b",
+		Weight: 0.10,
+		Effect: goldenEffect,
+	},
+	FoodPoison: {
+		Type:   FoodPoison,
+		Name:   "Poison",
+		Color:  "#a855f7",
+		Weight: 0.15,
+		Effect: poisonEffect,
+	},
 }
 
 type FoodManager struct {
-	Foods  []Food
-	BoardW int
-	BoardH int
-	rng    *rand.Rand
+	Foods    []Food
+	BoardW   int
+	BoardH   int
+	rng      *rand.Rand
+	weighted []FoodType
+	totalW   float64
 }
 
 func NewFoodManager(w, h int) *FoodManager {
-	return &FoodManager{
-		Foods:  make([]Food, 0, MaxFoods),
-		BoardW: w,
-		BoardH: h,
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+	weighted := make([]FoodType, 0, len(foodConfigs))
+	var totalW float64
+	for _, cfg := range foodConfigs {
+		weighted = append(weighted, cfg.Type)
+		totalW += cfg.Weight
 	}
+	return &FoodManager{
+		Foods:    make([]Food, 0, MaxFoods),
+		BoardW:   w,
+		BoardH:   h,
+		rng:      rand.New(rand.NewSource(time.Now().UnixNano())),
+		weighted: weighted,
+		totalW:   totalW,
+	}
+}
+
+func (fm *FoodManager) rollType() FoodType {
+	r := fm.rng.Float64() * fm.totalW
+	var acc float64
+	for _, t := range fm.weighted {
+		acc += foodConfigs[t].Weight
+		if r < acc {
+			return t
+		}
+	}
+	return FoodNormal
 }
 
 func (fm *FoodManager) occupied(p Point, snakes ...*Snake) bool {
@@ -92,18 +144,6 @@ func (fm *FoodManager) randomPoint() Point {
 	}
 }
 
-func (fm *FoodManager) rollFoodType() FoodType {
-	r := fm.rng.Float64()
-	switch {
-	case r < 0.10:
-		return FoodGolden
-	case r < 0.25:
-		return FoodPoison
-	default:
-		return FoodNormal
-	}
-}
-
 func (fm *FoodManager) Spawn(snakes ...*Snake) bool {
 	if len(fm.Foods) >= MaxFoods {
 		return false
@@ -111,8 +151,7 @@ func (fm *FoodManager) Spawn(snakes ...*Snake) bool {
 	for attempts := 0; attempts < 200; attempts++ {
 		p := fm.randomPoint()
 		if !fm.occupied(p, snakes...) {
-			ft := fm.rollFoodType()
-			fm.Foods = append(fm.Foods, newFood(p, ft))
+			fm.Foods = append(fm.Foods, Food{Pos: p, Type: fm.rollType()})
 			return true
 		}
 	}
@@ -135,9 +174,9 @@ func (fm *FoodManager) ensureNormalFood(snakes ...*Snake) {
 		}
 	}
 	if len(fm.Foods) >= MaxFoods {
-		for i, f := range fm.Foods {
-			if f.Type != FoodNormal {
-				fm.Foods[i] = newFood(f.Pos, FoodNormal)
+		for i := range fm.Foods {
+			if fm.Foods[i].Type != FoodNormal {
+				fm.Foods[i] = Food{Pos: fm.Foods[i].Pos, Type: FoodNormal}
 				return
 			}
 		}
@@ -145,7 +184,7 @@ func (fm *FoodManager) ensureNormalFood(snakes ...*Snake) {
 	for attempts := 0; attempts < 200; attempts++ {
 		p := fm.randomPoint()
 		if !fm.occupied(p, snakes...) {
-			fm.Foods = append(fm.Foods, newFood(p, FoodNormal))
+			fm.Foods = append(fm.Foods, Food{Pos: p, Type: FoodNormal})
 			return
 		}
 	}
