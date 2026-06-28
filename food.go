@@ -50,11 +50,10 @@ func goldenEffect(s *Snake) {
 }
 
 func poisonEffect(s *Snake) {
-	if len(s.Body) <= 3 {
+	if !s.Shrink(2) {
 		s.Alive = false
 		return
 	}
-	s.Shrink(2)
 	s.Score -= 20
 	if s.Score < 0 {
 		s.Score = 0

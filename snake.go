@@ -82,12 +82,15 @@ func (s *Snake) Grow() {
 	s.GrowQueue++
 }
 
-func (s *Snake) Shrink(n int) {
-	for i := 0; i < n; i++ {
-		if len(s.Body) > 1 {
-			s.Body = s.Body[:len(s.Body)-1]
-		}
+func (s *Snake) Shrink(n int) bool {
+	if n <= 0 {
+		return true
 	}
+	if n >= len(s.Body) {
+		return false
+	}
+	s.Body = s.Body[:len(s.Body)-n]
+	return true
 }
 
 func (s *Snake) Occupies(p Point) bool {
